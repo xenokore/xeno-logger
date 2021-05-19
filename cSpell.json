@@ -4,8 +4,11 @@
     "words": [
         "autoload",
         "autowire",
+        "classmap",
         "cryptographically",
         "dotnotation",
+        "phpunit",
+        "xeno",
         "xenokore"
     ],
     "flagWords": []

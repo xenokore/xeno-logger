@@ -5,79 +5,85 @@ namespace Xenokore\Logger;
 use Psr\Log\AbstractLogger;
 use Monolog\Logger as MonoLogger;
 use Monolog\Handler\StreamHandler;
+use Monolog\Handler\FingersCrossedHandler;
 
 use Xenokore\Utility\Helper\ArrayHelper;
 use Xenokore\Utility\Helper\DirectoryHelper;
-
 use Xenokore\Logger\Exception\InvalidLogDirectoryException;
-
-/**
- * What we need as configuration:
- * - log output dir
- * - debugging or not
- */
 
 class Logger extends AbstractLogger
 {
-    private const ERROR_LOG_FILENAME = 'error.log';
-    private const DEBUG_LOG_FILENAME = 'debug.log';
+    public const FINGERS_CROSSED_LOG_FILENAME = 'error.debug.log';
+    public const ERROR_LOG_FILENAME           = 'error.log';
+    public const DEBUG_LOG_FILENAME           = 'debug.log';
 
     /**
      * The monolog instance
+     *
      * @var MonoLogger
      */
     private $logger;
 
-    /**
-     * The active configuration of the logger
-     * @var \ArrayObject|array
-     */
-    private $config;
-
     public function __construct(array $config = [])
     {
-        // Create the configuration
-        $this->config = ArrayHelper::mergeRecursiveDistinct(
-            require __DIR__ . '/../config/logger.conf.default.php',
+        // Overwrite custom config over the default one
+        $config = ArrayHelper::mergeRecursiveDistinct(
+            include __DIR__ . '/../config/logger.conf.default.php',
             $config
         );
 
-        // Config
-        $debug              = (bool) ($this->config['debug'] ?? false);
-        $logfile_enabled    = (bool) ($this->config['logfile']['enabled'] ?? false);
-        $logfile_output_dir = $this->config['logfile']['output_dir'] ?? null;
+        $output_dir = $config['output_dir'];
+
+        // Use system temp dir as default output dir
+        if ($output_dir === null || $output_dir === false) {
+            $output_dir = \sys_get_temp_dir() . '/xeno-logger';
+        } else {
+            // Normalize output dir path
+            $output_dir = \rtrim(\trim($output_dir,'\\/'));
+        }
+
+        // Make sure output directory exists
+        if (!DirectoryHelper::createIfNotExist($output_dir)) {
+            throw new InvalidLogDirectoryException(
+                "failed to create logger output dir: '{$output_dir}'"
+            );
+        }
+
+        // Check if output directory is accessible
+        if (!DirectoryHelper::isAccessible($output_dir)) {
+            throw new InvalidLogDirectoryException(
+                "'{$output_dir}' is not accessible"
+            );
+        }
 
         // Create the logger
-        $this->logger = new MonoLogger('main');
-
-        // Check if we need to add file output streams
-        if (!$logfile_enabled) {
-            return;
-        }
-
-        // Check if output directory is set
-        if (is_null($logfile_output_dir) || !is_string($logfile_output_dir)) {
-            throw new InvalidLogDirectoryException("logfile output directory must be set to a valid path");
-        }
-
-        // Check if output directory can be written to
-        if (DirectoryHelper::isAccessible($logfile_output_dir)) {
-            throw new InvalidLogDirectoryException("{$logfile_output_dir} is not a writable path");
-        }
+        $this->logger = new MonoLogger('log');
 
         // Add normal log file stream
         $this->logger->pushHandler(
             new StreamHandler(
-                $logfile_output_dir . '/' . self::ERROR_LOG_FILENAME,
+                $output_dir . '/' . self::ERROR_LOG_FILENAME,
                 MonoLogger::WARNING
             )
         );
 
+        // Add fingers-crossed handler
+        // When an error occurs this handler will include all debug/info logs that came before it
+        if ($config['use_fingers_crossed_log']) {
+            $stream_handler = new StreamHandler(
+                $output_dir . '/' . self::FINGERS_CROSSED_LOG_FILENAME,
+                MonoLogger::DEBUG,
+                false
+            );
+
+            $this->logger->pushHandler(new FingersCrossedHandler($stream_handler, MonoLogger::ERROR));
+        }
+
         // Add debug log file stream
-        if ($debug) {
+        if ($config['use_debug_log']) {
             $this->logger->pushHandler(
                 new StreamHandler(
-                    $logfile_output_dir . '/' . self::DEBUG_LOG_FILENAME,
+                    $output_dir . '/' . self::DEBUG_LOG_FILENAME,
                     MonoLogger::DEBUG
                 )
             );
@@ -91,9 +97,11 @@ class Logger extends AbstractLogger
 
     public function addInfo(string $key, string $value): void
     {
-        $this->logger->pushProcessor(function ($record) use ($key, $value) {
-            $record['extra'][$key] = $value;
-            return $record;
-        });
+        $this->logger->pushProcessor(
+            function ($record) use ($key, $value) {
+                $record['extra'][$key] = $value;
+                return $record;
+            }
+        );
     }
 }

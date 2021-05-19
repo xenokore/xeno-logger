@@ -3,8 +3,7 @@
 // Default logger configuration
 
 return [
-    'logfile' => [
-        'enabled' => false,
-        'output_dir' => null,
-    ]
+    'output_dir'              => null,
+    'use_debug_log'           => false,
+    'use_fingers_crossed_log' => true,    // Not used when debug log is being used
 ];
