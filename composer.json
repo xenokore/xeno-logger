@@ -1,22 +1,28 @@
 {
     "name": "xenokore/logger",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "type": "library",
     "description": "Simple wrapper for monolog",
-    "keywords": ["logger"],
+    "keywords": [
+        "logger"
+    ],
     "homepage": "https://xenokore.com",
     "license": "MIT",
-    "authors": [{
-        "name": "Yani B.",
-        "email": "yani@xenokore.com",
-        "homepage": "https://xenokore.com",
-        "role": "Developer"
-    }],
+    "authors": [
+        {
+            "name": "Yani B.",
+            "email": "yani@xenokore.com",
+            "homepage": "https://xenokore.com",
+            "role": "Developer"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Xenokore\\Logger\\": "src/"
         },
-        "classmap": ["src/"]
+        "classmap": [
+            "src/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
