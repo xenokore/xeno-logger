@@ -10,6 +10,7 @@ use Monolog\Handler\FingersCrossedHandler;
 use Xenokore\Utility\Helper\ArrayHelper;
 use Xenokore\Utility\Helper\DirectoryHelper;
 use Xenokore\Logger\Exception\InvalidLogDirectoryException;
+use Monolog\Formatter\LineFormatter;
 
 class Logger extends AbstractLogger
 {
@@ -59,35 +60,50 @@ class Logger extends AbstractLogger
         // Create the logger
         $this->logger = new MonoLogger('log');
 
-        // Add normal log file stream
-        $this->logger->pushHandler(
-            new StreamHandler(
-                $output_dir . '/' . self::ERROR_LOG_FILENAME,
-                MonoLogger::WARNING
-            )
+        // Error StreamHandler
+        $error_stream_handler = new StreamHandler(
+            $output_dir . '/' . self::ERROR_LOG_FILENAME,
+            MonoLogger::WARNING
         );
+        if($config['add_line_formatter']){
+            $error_stream_handler->setFormatter($this->getStacktraceFormatter());
+        }
+        $this->logger->pushHandler($error_stream_handler);
 
         // Add fingers-crossed handler
         // When an error occurs this handler will include all debug/info logs that came before it
         if ($config['use_fingers_crossed_log']) {
-            $stream_handler = new StreamHandler(
+            $fc_stream_handler = new StreamHandler(
                 $output_dir . '/' . self::FINGERS_CROSSED_LOG_FILENAME,
                 MonoLogger::DEBUG,
                 false
             );
-
-            $this->logger->pushHandler(new FingersCrossedHandler($stream_handler, MonoLogger::ERROR));
+            $this->logger->pushHandler(new FingersCrossedHandler($fc_stream_handler, MonoLogger::ERROR));
         }
 
-        // Add debug log file stream
+        // Add debug level handler
         if ($config['use_debug_log']) {
-            $this->logger->pushHandler(
-                new StreamHandler(
-                    $output_dir . '/' . self::DEBUG_LOG_FILENAME,
-                    MonoLogger::DEBUG
-                )
+            $debug_stream_handler = new StreamHandler(
+                $output_dir . '/' . self::DEBUG_LOG_FILENAME,
+                MonoLogger::DEBUG
             );
+            if($config['add_line_formatter']){
+                $debug_stream_handler->setFormatter($this->getStacktraceFormatter());
+            }
+            $this->logger->pushHandler($debug_stream_handler);
         }
+    }
+
+    private function getStacktraceFormatter()
+    {
+        // Monolog stacktrace formatter
+        $formatter = new LineFormatter(
+            LineFormatter::SIMPLE_FORMAT,
+            LineFormatter::SIMPLE_DATE,
+            true,
+            true
+        );
+        return $formatter;
     }
 
     public function log($level, $message, array $context = []): void
